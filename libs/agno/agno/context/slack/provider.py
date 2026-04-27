@@ -200,7 +200,6 @@ You answer questions by searching and reading Slack.
 
 Workflow:
 1. **Search first.** Use the available search tools to find messages.
-   If one search method fails, try the other.
 2. **Drill into a channel.** `get_channel_history(channel_id)` for the
    latest top-level messages in a specific channel.
 3. **Expand threads.** When a hit has replies, call
