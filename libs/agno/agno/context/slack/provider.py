@@ -47,6 +47,7 @@ class SlackContextProvider(ContextProvider):
         name: str = "Slack",
         read_instructions: str | None = None,
         write_instructions: str | None = None,
+        enable_media_tools: bool = False,
         mode: ContextMode = ContextMode.default,
         model: Model | None = None,
     ) -> None:
@@ -60,6 +61,7 @@ class SlackContextProvider(ContextProvider):
         self.write_instructions_text = (
             write_instructions if write_instructions is not None else DEFAULT_SLACK_WRITE_INSTRUCTIONS
         )
+        self.enable_media_tools = enable_media_tools
         self._read_tools: SlackTools | None = None
         self._write_tools: SlackTools | None = None
         self._read_agent: Agent | None = None
@@ -130,9 +132,10 @@ class SlackContextProvider(ContextProvider):
                 enable_send_message=False,
                 enable_send_message_thread=False,
                 enable_upload_file=False,
-                enable_download_file=False,
+                enable_download_file=self.enable_media_tools,
                 enable_list_channels=True,
                 enable_get_channel_history=True,
+                enable_search_messages=True,
                 enable_search_workspace=True,
                 enable_get_thread=True,
                 enable_list_users=True,
@@ -142,16 +145,14 @@ class SlackContextProvider(ContextProvider):
         return self._read_tools
 
     def _ensure_write_tools(self) -> SlackTools:
-        # Writer gets just enough to resolve #channel / @user names and post.
-        # No search / history / threads / uploads / downloads — if the write
-        # instruction needs context, compose query_slack → update_slack at
-        # the caller.
+        # Writer gets posting + uploads + name resolution. No search / history /
+        # threads / downloads — if the write needs context, compose query → update.
         if self._write_tools is None:
             self._write_tools = SlackTools(
                 token=self.token,
                 enable_send_message=True,
                 enable_send_message_thread=True,
-                enable_upload_file=False,
+                enable_upload_file=self.enable_media_tools,
                 enable_download_file=False,
                 enable_list_channels=True,
                 enable_get_channel_history=False,
@@ -198,8 +199,8 @@ DEFAULT_SLACK_READ_INSTRUCTIONS = """\
 You answer questions by searching and reading Slack.
 
 Workflow:
-1. **Search first.** `search_workspace(query)` finds messages across the
-   workspace — ideal for topic / catch-up / cross-channel questions.
+1. **Search first.** Use the available search tools to find messages.
+   If one search method fails, try the other.
 2. **Drill into a channel.** `get_channel_history(channel_id)` for the
    latest top-level messages in a specific channel.
 3. **Expand threads.** When a hit has replies, call
